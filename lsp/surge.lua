@@ -1,5 +1,5 @@
 return {
-  cmd = { 'surge-cli', 'lsp' },
+  cmd = { '/Applications/Surge.app/Contents/Applications/surge-cli', 'lsp' },
   filetypes = { 'surge', 'surge_module', 'surge_ruleset', 'sgconf' },
   root_dir = function(_, on_dir) on_dir(nil) end,
   get_language_id = function(bufnr, filetype)
