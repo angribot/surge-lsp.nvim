@@ -5,7 +5,7 @@ vim.filetype.add({
   extension = { sgconf = 'surge', dconf = 'surge', sgmodule = 'surge_module' },
   filename = { ['Surge.conf'] = 'surge' },
   pattern = {
-    ['.*'] = { function(path, buf)
+    ['.+'] = { function(path, buf)
       return require('surge.detect').match(path, buf)
     end, { priority = -math.huge } },
   },
