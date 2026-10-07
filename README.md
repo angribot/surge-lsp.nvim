@@ -1,111 +1,152 @@
 # surge-lsp.nvim
 
-Lightweight Surge highlighting and optional official LSP diagnostics for Neovim.
-No compilation, Tree-sitter, Node.js, or `nvim-lspconfig` required.
+Lightweight Surge highlighting and opt-in official LSP diagnostics for Neovim.
 
-Highlighting uses independently written Vim syntax rules.
-
-## Requirements
+## Requirements and installation
 
 - Neovim 0.12 or later.
-- For diagnostics only: macOS, Surge Mac 6.10.0 or later, and `surge-cli`
-  available on Neovim's `PATH`.
+- For diagnostics: macOS, Surge Mac 6.10.0 or later, and `surge-cli` on `PATH`.
 
-Highlighting does not require Surge or an enabled language server.
+Install with your plugin manager or as a `pack/*/start` package. No `setup()`
+call is needed. Do not lazy-load by filetype: the plugin registers detection.
+Highlighting works without Surge. If disabled in your configuration, enable
+`filetype plugin on` and `syntax enable`.
 
-## Install
-
-Install this repository with your plugin manager or as a standard
-`pack/*/start` package. No `setup()` call is needed. Do not lazy-load it on
-`ft = 'sgconf'`: the plugin itself registers that file type.
-
-Neovim normally enables syntax and filetype plugins by default. If your
-configuration disables them, enable them with:
-
-```vim
-filetype plugin on
-syntax enable
-```
-
-Optionally enable diagnostics in `init.lua`, after making the plugin available
-on the runtime path:
+Enable diagnostics explicitly, after the plugin is on the runtime path:
 
 ```lua
 vim.lsp.enable('surge')
 ```
 
-Use this plugin instead of `nvim-treesitter-sgconf`, not alongside it, to avoid
-competing highlighters and LSP configurations. An existing
-`~/.config/nvim/lsp/surge.lua` takes precedence over the bundled LSP config;
-remove or update that override when migrating.
+Use this plugin instead of `nvim-treesitter-sgconf`, not alongside it.
+An existing `~/.config/nvim/lsp/surge.lua` takes precedence over the bundled
+configuration; remove or update that override when migrating.
 
-## File detection
+## Filetypes and detection
 
-The plugin recognizes:
+| Neovim filetype | LSP language ID | Filename associations |
+| --- | --- | --- |
+| `surge` | `surge` | `*.sgconf`, `*.dconf`, `Surge.conf` |
+| `surge_module` | `surge-module` | `*.sgmodule` |
+| `surge_ruleset` | `surge-ruleset` | Content detection or manual selection |
+| `sgconf` (legacy) | `surge`, or `surge-module` for `.sgmodule` | Manual/user association |
 
-- `*.sgmodule` anywhere.
-- `*.conf` and `*.dconf`, including nested directories, beneath:
-  - `~/Library/Application Support/Surge/Profiles/`
-  - `~/Library/Mobile Documents/iCloud~com~nssurge~inc/Documents/`
+All four use `# %s` as their comment string. Separate filetypes take precedence
+over filenames when choosing the language ID. Legacy `sgconf` remains supported
+for existing configurations, but is no longer the automatically assigned type.
 
-These files use the `sgconf` file type and `# %s` comment string. Other `.conf`
-files, `.sgconf`, `.lsr`, and `.list` are not automatically recognized.
-For a configuration elsewhere, use `:setfiletype sgconf`, or
-`:setlocal filetype=sgconf` to override an existing file type.
+Content/location detection follows the conservative recognition criteria of the
+**official Surge VSCode extension 0.1.9**:
 
-File detection is registered on plugin load, independently of LSP activation.
-If you load the plugin after opening a file, reopen it or set its file type
-manually.
+- `.conf` files in a `Library/Application Support/Surge/Profiles/` or
+  `Library/Mobile Documents/iCloud~com~nssurge~inc/Documents/Profiles/` directory
+  are profiles, including nested files.
+- Elsewhere, `.conf` files need `[Rule]` plus `[Proxy]` or `[Proxy Group]`.
+  Section names are case-sensitive; trailing comments are allowed.
+- `.conf`, `.txt`, `.module`, and extensionless module candidates need a nonempty
+  `#!name = ...` before the first section. Module evidence takes precedence.
+- RULE-SET detection requires at least two recognized rule lines, ignoring
+  blank/comment lines. All examined rules must have a condition and only known
+  options (`no-resolve`, `extended-matching`, `pre-matching`, `debug`), not a
+  policy column. Recognition stops checking rules after 20 valid entries.
+  Quoted conditions are supported. `.list`/`.lsr` alone imply nothing.
+- Plain domain lists (DOMAIN-SET), YAML payloads, and profile rule blocks with
+  policy columns are not automatically treated as standalone RULE-SET files.
+
+Recognition inspects only complete lines within the first **65,536 bytes** of
+buffer content, including unsaved edits. It does not read the file again or
+validate rule values. The byte limit is intentionally not VSCode's UTF-16 limit.
+
+### Native Neovim precedence
+
+Content recognition is a lowest-priority `vim.filetype.add` fallback. Existing
+filename/extension/pattern associations win, and detection never overwrites a
+nonempty buffer filetype. Unlike VSCode, Neovim does not expose whether a generic
+filetype was explicitly chosen. Consequently, default `text` (`.txt`), `dosini`
+(`.ini`), and other already-associated types are preserved too; use a manual
+filetype for those documents. Unmatched `.conf` files can be recognized before
+Neovim's generic configuration fallback.
+
+Untyped named buffers are reconsidered on `TextChanged`/`TextChangedI`; buffers
+already assigned a type are not reclassified after edits. Special buffers,
+URI-style names, and unnamed buffers are not content-detected. For late plugin
+loading, reopen the file or select a filetype manually. There are no timers,
+VSCode-style language-change tracking, or lifecycle emulation.
+
+Disable heuristic content/location detection in `init.lua`:
+
+```lua
+vim.g.surge_auto_detect = false
+```
+
+Explicit filename associations above remain active, like the extension's
+contributed language associations. Existing buffers are not reclassified.
+
+Select a type explicitly, overriding the current type:
+
+```vim
+:setlocal filetype=surge
+:setlocal filetype=surge_module
+:setlocal filetype=surge_ruleset
+```
+
+Use `:setfiletype surge` only when a buffer has no established type. For persistent
+associations, configure Neovim normally (after this plugin loads when replacing
+one of its exact mappings):
+
+```lua
+vim.filetype.add({
+  filename = { ['work-profile.conf'] = 'surge' },
+  extension = { myrules = 'surge_ruleset' },
+  pattern = { ['.*/not-surge/.*%.conf'] = 'dosini' },
+})
+```
 
 ## Highlighting
 
-`syntax/sgconf.vim` provides basic lexical highlighting for:
+Config and module buffers share the independently written `sgconf` Vim syntax:
+sections, assignments, common rule types, policies, parameters, strings,
+comments, and module directives. RULE-SET buffers use separate, original syntax
+for rule names, options, delimiters, quoted conditions, and comments, without
+profile assignments or policy highlighting. Highlight groups use
+`highlight default link` so themes can override them.
 
-- Section headers, assignment names, and comma-separated parameter names.
-- Common rule types and built-in policies.
-- Booleans, numbers, delimiters, and double-quoted strings.
-- Comments, TODO markers, and module directives.
-
-Highlight groups link to standard theme groups using `highlight default link`.
-This is intentionally not a full parser: it does not validate section-specific
-keys, parse embedded scripts or regular expressions, or provide Tree-sitter
-folds, text objects, or structural navigation. Unknown rule types may remain
-uncolored; diagnostics remain the official server's responsibility.
+This is lexical highlighting, not a full parser or a copy of the official
+TextMate grammars. It does not validate section-specific keys, parse embedded
+scripts/regular expressions, or provide Tree-sitter folds/text objects.
 
 ## Diagnostics
 
-`lsp/surge.lua` runs `{ 'surge-cli', 'lsp' }`. Configuration documents use the
-`surge` language ID; modules use `surge-module`. `.lsr` and `.list` are excluded
-even if manually assigned `sgconf`; RULE-SET and DOMAIN-SET diagnostics are
-outside this plugin's scope.
+The bundled config runs `{ 'surge-cli', 'lsp' }`. Configurations, modules, and
+RULE-SET buffers are all eligible, including manually selected `.list`/`.lsr`
+files. DOMAIN-SET validation is not provided by selecting RULE-SET mode.
+Diagnostics use Neovim's built-in UI. The server runs offline and does not apply
+configuration changes to Surge.
 
-Errors and warnings use Neovim's built-in diagnostics, including unknown
-`[General]` key warnings. The server runs offline without a running Surge app
-and does not apply configuration changes.
-
-Buffers share a rootless server instance. Open a main profile alongside its
-included `.dconf` files for policy and script reference checks. Standalone
-fragments receive syntax checks; the main must actually reference the fragment
-with `#!include` for context to apply.
-
-When multiple main profiles include the same fragment with different
+Buffers share a rootless server instance. Open the main profile alongside its
+included `.dconf` fragments for policy and script reference checks; the main must
+actually reference the fragment with `#!include`. Standalone fragments receive
+syntax checks. If multiple main profiles include the same fragment with different
 definitions, the last validation can replace its diagnostics. Keep only the
 relevant main profile open for unambiguous results.
 
-To override the command, configure it before enabling:
+Override the command using normal Neovim configuration, before enabling:
 
 ```lua
 vim.lsp.config('surge', {
-  cmd = { '/custom/path/surge-cli', 'lsp' },
+  cmd = { '/Applications/Surge.app/Contents/Applications/surge-cli', 'lsp' },
 })
 vim.lsp.enable('surge')
 ```
 
-The plugin does not search for, install, or version-check the CLI. For startup
-failures, check `:checkhealth vim.lsp`, `:echo executable('surge-cli')`, and the
-log at `:lua print(vim.lsp.log.get_filename())`.
+Unlike the VSCode extension, this plugin uses `PATH` by default and does not
+install, discover, version-check, or automatically enable the server. It does not
+install a workspace-wide file watcher; context updates depend on the server and
+Neovim's LSP synchronization rather than VSCode's broad watcher.
+For failures, check `:checkhealth vim.lsp`, `:echo executable('surge-cli')`, and
+`:lua print(vim.lsp.log.get_filename())`.
 
-Restart diagnostics with:
+Restart with:
 
 ```lua
 vim.lsp.enable('surge', false)
@@ -114,4 +155,5 @@ vim.lsp.enable('surge')
 
 ## License
 
-MIT. See [LICENSE](LICENSE).
+MIT. See [LICENSE](LICENSE). The official extension was consulted only as a
+behavioral reference; its source and grammars are not included or copied.
