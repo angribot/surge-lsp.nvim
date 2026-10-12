@@ -5,7 +5,9 @@ Lightweight Surge highlighting and opt-in official LSP diagnostics for Neovim.
 ## Requirements and installation
 
 - Neovim 0.12 or later.
-- For diagnostics: macOS, Surge Mac 6.10.0 or later, and `surge-cli` on `PATH`.
+- For diagnostics: macOS and Surge Mac 6.10.0 or later. The default CLI path is
+  `/Applications/Surge.app/Contents/Applications/surge-cli`; override it if Surge
+  is installed elsewhere.
 
 Install with your plugin manager or as a `pack/*/start` package. No `setup()`
 call is needed. Do not lazy-load by filetype: the plugin registers detection.
@@ -104,20 +106,39 @@ vim.filetype.add({
 
 ## Highlighting
 
-Config and module buffers share the independently written `sgconf` Vim syntax:
-sections, assignments, common rule types, policies, parameters, strings,
-comments, and module directives. RULE-SET buffers use separate, original syntax
-for rule names, options, delimiters, quoted conditions, and comments, without
-profile assignments or policy highlighting. Highlight groups use
-`highlight default link` so themes can override them.
+Config and module buffers share the independently written, section-aware
+`sgconf` Vim syntax:
+
+- `[Proxy]` and `[Proxy Group]`: definition names, proxy/group types, members,
+  and parameters.
+- `[Rule]`: rule types, conditions, target policies, options, and nested
+  `AND`/`OR`/`NOT` expressions. `FINAL` has no condition field.
+- `[Ruleset NAME]` and standalone RULE-SET files: shared policy-free rule syntax,
+  including quoted conditions and nested expressions.
+- `[Script]`: script names, types, parameters, and pattern values.
+- URL, Header, and Body Rewrite sections: patterns, replacements, actions,
+  directions, and header names; Body Rewrite also recognizes jq forms.
+- Shared tokens: comments, module directives, single/double-quoted strings,
+  escapes, `{{{placeholders}}}`, URLs, IP addresses, numbers, and booleans.
+
+Tokens are scoped to their section and field so strings, URLs, and patterns do
+not acquire unrelated assignment or policy highlighting. Section headers may
+have trailing comments. Standalone RULE-SET buffers do not highlight profile
+assignments or target policies. Shared tokens use `sgconf*` highlight groups;
+standalone rule types, options, and comments also expose `surgeRuleset*` groups.
+All links use `highlight default link` so themes can override them.
 
 This is lexical highlighting, not a full parser or a copy of the official
-TextMate grammars. It does not validate section-specific keys, parse embedded
-scripts/regular expressions, or provide Tree-sitter folds/text objects.
+TextMate grammars. Rule-shaped type names are highlighted without validating a
+fixed keyword list. Validation remains the official server's job. Regexes,
+embedded scripts, and jq expressions are not parsed as embedded languages;
+Tree-sitter folds/text objects and exact TextMate scope parity are not provided.
 
 ## Diagnostics
 
-The bundled config runs `{ 'surge-cli', 'lsp' }`. Configurations, modules, and
+The bundled config runs
+`{ '/Applications/Surge.app/Contents/Applications/surge-cli', 'lsp' }`, matching
+the official VSCode extension's default path. Configurations, modules, and
 RULE-SET buffers are all eligible, including manually selected `.list`/`.lsr`
 files. DOMAIN-SET validation is not provided by selecting RULE-SET mode.
 Diagnostics use Neovim's built-in UI. The server runs offline and does not apply
@@ -130,21 +151,25 @@ syntax checks. If multiple main profiles include the same fragment with differen
 definitions, the last validation can replace its diagnostics. Keep only the
 relevant main profile open for unambiguous results.
 
-Override the command using normal Neovim configuration, before enabling:
+Override the command using normal Neovim configuration, before enabling. For
+example, to use a compatible `surge-cli` on `PATH` instead:
 
 ```lua
 vim.lsp.config('surge', {
-  cmd = { '/Applications/Surge.app/Contents/Applications/surge-cli', 'lsp' },
+  cmd = { 'surge-cli', 'lsp' },
 })
 vim.lsp.enable('surge')
 ```
 
-Unlike the VSCode extension, this plugin uses `PATH` by default and does not
-install, discover, version-check, or automatically enable the server. It does not
-install a workspace-wide file watcher; context updates depend on the server and
-Neovim's LSP synchronization rather than VSCode's broad watcher.
-For failures, check `:checkhealth vim.lsp`, `:echo executable('surge-cli')`, and
-`:lua print(vim.lsp.log.get_filename())`.
+Neither this plugin nor the official extension installs the CLI or searches for
+it automatically; the CLI ships with Surge. Unlike the VSCode extension, this
+plugin does not perform a compatibility preflight or automatically enable the
+server. It does not install a workspace-wide file watcher; context updates
+depend on the server and Neovim's LSP synchronization rather than VSCode's broad
+watcher. For failures, check `:checkhealth vim.lsp`, verify the configured
+executable (by default,
+`:echo executable('/Applications/Surge.app/Contents/Applications/surge-cli')`),
+and inspect `:lua print(vim.lsp.log.get_filename())`.
 
 Restart with:
 
