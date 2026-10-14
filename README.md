@@ -108,33 +108,35 @@ vim.filetype.add({
 
 ## Highlighting
 
-Config and module buffers share the independently written, section-aware
-`sgconf` Vim syntax:
+Native Vim syntax highlighting follows the official Surge VSCode extension
+**0.1.9** for profiles, modules, and RULE-SET files, without a TextMate runtime
+or extra dependencies. It covers:
 
-- `[Proxy]` and `[Proxy Group]`: definition names, proxy/group types, members,
-  and parameters.
-- `[Rule]`: rule types, conditions, target policies, options, and nested
-  `AND`/`OR`/`NOT` expressions. `FINAL` has no condition field.
-- `[Ruleset NAME]` and standalone RULE-SET files: shared policy-free rule syntax,
-  including quoted conditions and nested expressions.
-- `[Script]`: script names, types, parameters, and pattern values.
-- URL, Header, and Body Rewrite sections: patterns, replacements, actions,
-  directions, and header names; Body Rewrite also recognizes jq forms.
-- Shared tokens: comments, module directives, single/double-quoted strings,
-  escapes, `{{{placeholders}}}`, URLs, IP addresses, numbers, and booleans.
+- Proxy/policy-group definitions, members, and parameters.
+- Rule conditions, policy references, modifiers, and recursive logical rules;
+  inline and standalone RULE-SET entries share the policy-free grammar.
+- Script names, recognized script types, and pattern parameters.
+- URL/Header/Body Rewrite fields, capture references, and jq forms.
+- Comments, directives, placeholders, quoted/unquoted values, URLs, IPv4
+  addresses, numbers, and constants, including outside sections.
 
-Tokens are scoped to their section and field so strings, URLs, and patterns do
-not acquire unrelated assignment or policy highlighting. Section headers may
-have trailing comments. Standalone RULE-SET buffers do not highlight profile
-assignments or target policies. Shared tokens use `sgconf*` highlight groups;
-standalone rule types, options, and comments also expose `surgeRuleset*` groups.
-All links use `highlight default link` so themes can override them.
+Section names are case-sensitive and exact: `[ Rule ]` is not `[Rule]`.
+As upstream does, any line beginning with `[` after indentation ends the
+previous section, even an unfinished header or bracket-led rewrite pattern.
+Incomplete constructs fall back to ordinary value highlighting.
 
-This is lexical highlighting, not a full parser or a copy of the official
-TextMate grammars. Rule-shaped type names are highlighted without validating a
-fixed keyword list. Validation remains the official server's job. Regexes,
-embedded scripts, and jq expressions are not parsed as embedded languages;
-Tree-sitter folds/text objects and exact TextMate scope parity are not provided.
+This aligns lexical categories, not theme colors or TextMate scope stacks.
+Word/digit classes use Neovim's native ASCII-oriented patterns: boundaries
+around non-ASCII letters, digits, or combining marks can differ from Oniguruma.
+Unicode text in names, strings, conditions, and placeholders remains supported.
+TextMate tokenizer recovery quirks on malformed input are not emulated.
+Regexes, scripts, and jq are not parsed as embedded languages.
+
+Highlighting works without Surge installed and does not validate configuration;
+enable diagnostics for that. Colors depend on your Neovim theme. Override the
+`sgconf*` highlight groups to customize them; standalone RULE-SET files also
+expose `surgeRulesetType` and `surgeRulesetComment`. All links use
+`highlight default link`.
 
 ## Diagnostics
 
