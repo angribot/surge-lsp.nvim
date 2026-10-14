@@ -2,6 +2,8 @@
 
 Lightweight Surge highlighting and opt-in official LSP diagnostics for Neovim.
 
+A Neovim plugin modeled after the official [Surge language support extension for VS Code](https://marketplace.visualstudio.com/items?itemName=SurgeNetworks.surge-language-support).
+
 ## Requirements and installation
 
 - Neovim 0.12 or later.
