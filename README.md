@@ -126,9 +126,10 @@ previous section, even an unfinished header or bracket-led rewrite pattern.
 Incomplete constructs fall back to ordinary value highlighting.
 
 This aligns lexical categories, not theme colors or TextMate scope stacks.
-Word/digit classes use Neovim's native ASCII-oriented patterns: boundaries
-around non-ASCII letters, digits, or combining marks can differ from Oniguruma.
-Unicode text in names, strings, conditions, and placeholders remains supported.
+Word boundaries and numeric literals cover Latin, Greek, Cyrillic, Hebrew,
+Arabic, Devanagari, Thai, Kana, CJK, and Hangul text, plus the digit ranges
+used by those scripts. Text in scripts outside that set is still highlighted,
+but constants and numbers adjacent to it may be classified as ordinary values.
 TextMate tokenizer recovery quirks on malformed input are not emulated.
 Regexes, scripts, and jq are not parsed as embedded languages.
 

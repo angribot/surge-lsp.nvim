@@ -27,15 +27,21 @@ function! s:Fields(name, parts) abort
         \ . '/ contained transparent keepend contains=' . a:name . 'Step' . l:fields[0]
 endfunction
 
+" Oniguruma extends \w and \d to all of Unicode; Vim's [:alnum:] and \d are
+" ASCII-only. These ranges restore the upstream boundary and digit semantics.
+" \u ranges select the NFA engine automatically.
+let s:w = 'A-Za-z0-9_\u00C0-\u024F\u0300-\u036F\u0370-\u03FF\u0400-\u04FF\u0590-\u05FF\u0600-\u06FF\u0900-\u097F\u0E00-\u0E7F\u1E00-\u1EFF\u3040-\u30FF\u4E00-\u9FFF\uAC00-\uD7A3\u0660-\u0669\u0966-\u096F\uFF10-\uFF19'
+let s:dg = '0-9\u0660-\u0669\u06F0-\u06F9\u0966-\u096F\uFF10-\uFF19'
+
 " TextMate prefers earlier alternatives; Vim prefers later definitions.
 syntax match sgconfBarePlaceholder /{{{[^}[:space:],=]\+}}}/ contained
 syntax match sgconfURLPlaceholder /{{{[^}[:space:],"']\+}}}/ contained
 syntax match sgconfBareValue /[^[:space:],=]\+/ contained contains=sgconfBarePlaceholder
 syntax match sgconfDelimiter /[,=]/ contained
-syntax match sgconfNumber /[[:alnum:]_.-]\@1<!\d\+\%(\.\d\+\)\?[[:alnum:]_.-]\@!/ contained
-syntax match sgconfAddress /[[:alnum:]_.]\@1<!\%(\d\{1,3}\.\)\{3}\d\{1,3}\%(\/\d\+\)\?[[:alnum:]_.]\@!/ contained
-syntax match sgconfBoolean /[[:alnum:]_]\@1<!\%(true\|false\|enabled\|disabled\)[[:alnum:]_]\@!/ contained
-syntax match sgconfPolicy /[[:alnum:]_]\@1<!\%(DIRECT\|REJECT\%(-DROP\|-TINYGIF\|-NO-DROP\)\?\)[[:alnum:]_]\@!/ contained
+execute 'syntax match sgconfNumber /[' . s:w . '.-]\@1<![' . s:dg . ']\+\%(\.[' . s:dg . ']\+\)\?[' . s:w . '.-]\@!/ contained'
+execute 'syntax match sgconfAddress /[' . s:w . '.:]\@1<!\%([' . s:dg . ']\{1,3}\.\)\{3}[' . s:dg . ']\{1,3}\%(\/[' . s:dg . ']\+\)\?[' . s:w . '.:]\@!/ contained'
+execute 'syntax match sgconfBoolean /[' . s:w . ']\@1<!\%(true\|false\|enabled\|disabled\)[' . s:w . ']\@!/ contained'
+execute 'syntax match sgconfPolicy /[' . s:w . ']\@1<!\%(DIRECT\|REJECT\%(-DROP\|-TINYGIF\|-NO-DROP\)\?\)[' . s:w . ']\@!/ contained'
 syntax match sgconfURL /[[:alnum:]_]\@1<!\%(https\?\|socks5\|file\):\/\/[^[:space:],"']\+/ contained contains=sgconfURLPlaceholder
 call s:Fields('sgconfParameterMatch', [
       \ ['[[:alnum:]_]\@1<![a-zA-Z]\%([[:alnum:]_-]*\)\@>', 'sgconfParameter'], ['\s*=', 'sgconfAssignmentOperator']])
@@ -76,7 +82,7 @@ syntax match sgconfLogicalComma /,/ contained
 call s:Fields('sgconfNestedRuleMatch', [['[[:alnum:]_]\@1<![A-Z][A-Z0-9-]*', 'sgconfNestedRule'], [',', 'sgconfDelimiter']])
 syntax region sgconfExpression transparent matchgroup=sgconfLogicalOpen start=/(/ matchgroup=sgconfLogicalClose end=/)/ end=/$/ oneline contained contains=sgconfNestedCondition,sgconfLogicalComma,@sgconfStrings,sgconfNestedRuleMatch,sgconfExpression
 syntax match sgconfLogicalTarget /,\@1<=\s*[^,()[:space:]][^,()]*/ contained
-syntax match sgconfRuleOption /[[:alnum:]_]\@1<!\%(no-resolve\|extended-matching\|pre-matching\|force-remote-dns\|no-system\|via-interface\)[[:alnum:]_]\@!/ contained
+execute 'syntax match sgconfRuleOption /[' . s:w . ']\@1<!\%(no-resolve\|extended-matching\|pre-matching\|force-remote-dns\|no-system\|via-interface\)[' . s:w . ']\@!/ contained'
 call s:Fields('sgconfLogicalStart', ['^\s*', ['\%(AND\|OR\|NOT\)', 'sgconfLogicalRule'], s:comma])
 syntax region sgconfLogicalLine transparent start=/^\s*\%(AND\|OR\|NOT\)\s*,/ end=/$/ oneline keepend contained contains=@sgconfValues,sgconfLogicalTarget,sgconfRuleOption,sgconfExpression,sgconfLogicalStart
 call s:Fields('sgconfFinalMatch', ['^\s*', ['FINAL', 'sgconfFinalRule'], s:comma, '\s*', [s:field, 'sgconfTarget', '@sgconfFieldPolicy'], s:tail])
@@ -123,7 +129,7 @@ execute 'syntax region sgconfJQLine transparent start=/^\s*http-\%(request\|resp
 syntax region sgconfDirectiveLine transparent start=/^\s*#![[:alnum:]_-]\+/ end=/$/ oneline keepend contained contains=sgconfDirectiveStart,@sgconfValues
 syntax match sgconfComment /\s\@1<=\%(#!\@!\|;\|\/\/\).*$/ contained
 syntax match sgconfComment /^\s*\%(#!\@!\|;\|\/\/\).*$/ contained
-unlet s:name s:quoted s:atom s:field s:tail s:comma s:definition s:word s:rewriteTail s:direction s:parts
+unlet s:w s:dg s:name s:quoted s:atom s:field s:tail s:comma s:definition s:word s:rewriteTail s:direction s:parts
 delfunction s:Fields
 
 " Public groups remain theme-overridable; field wrappers link to these roles.
